@@ -62,6 +62,13 @@ fun SettingsScreen(
     val isAmoledMode by prefs.amoledModeFlow.collectAsStateWithLifecycle(initialValue = false)
     val isBiometricEnabled by prefs.biometricEnabledFlow.collectAsStateWithLifecycle(initialValue = false)
 
+    // Overlay Settings
+    val showTimestamp by prefs.showTimestampFlow.collectAsStateWithLifecycle(initialValue = false)
+    val showGps by prefs.showGpsFlow.collectAsStateWithLifecycle(initialValue = false)
+    val showAppName by prefs.showAppNameFlow.collectAsStateWithLifecycle(initialValue = false)
+    val showDeviceInfo by prefs.showDeviceInfoFlow.collectAsStateWithLifecycle(initialValue = false)
+    val showLensInfo by prefs.showLensInfoFlow.collectAsStateWithLifecycle(initialValue = false)
+
     // Trigger Settings
     val isShakeEnabled by prefs.shakeTriggerEnabledFlow.collectAsStateWithLifecycle(initialValue = false)
     val shakeToggleOff by prefs.shakeToggleOffFlow.collectAsStateWithLifecycle(initialValue = false)
@@ -405,7 +412,53 @@ fun SettingsScreen(
                 }
             }
 
-            // Card 4: Security
+            // Card 4: Overlay Settings
+            Card(modifier = Modifier.animateContentSize()) {
+                Column(modifier = Modifier.padding(16.dp)) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(Icons.Default.Layers, null, modifier = Modifier.size(24.dp).padding(end = 8.dp), tint = MaterialTheme.colorScheme.primary)
+                        Text("Overlay Settings", style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.primary)
+                    }
+                    Text("Burn info directly onto video and photos", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Spacer(modifier = Modifier.height(8.dp))
+                    
+                    SettingSwitch(
+                        label = "Show Timestamp (Date/Time)",
+                        checked = showTimestamp,
+                        onCheckedChange = { scope.launch { prefs.setShowTimestamp(it) } }
+                    )
+                    SettingSwitch(
+                        label = "Show GPS Coordinates",
+                        checked = showGps,
+                        onCheckedChange = { checked ->
+                            if (checked) {
+                                activity?.let { permissionManager.requestLocationPermission(it) { granted ->
+                                    if (granted) scope.launch { prefs.setShowGps(true) }
+                                } }
+                            } else {
+                                scope.launch { prefs.setShowGps(false) }
+                            }
+                        }
+                    )
+                    SettingSwitch(
+                        label = "Show App Name",
+                        checked = showAppName,
+                        onCheckedChange = { scope.launch { prefs.setShowAppName(it) } }
+                    )
+                    SettingSwitch(
+                        label = "Show Device Information",
+                        checked = showDeviceInfo,
+                        onCheckedChange = { scope.launch { prefs.setShowDeviceInfo(it) } }
+                    )
+                    SettingSwitch(
+                        label = "Show Lens Information",
+                        checked = showLensInfo,
+                        onCheckedChange = { scope.launch { prefs.setShowLensInfo(it) } }
+                    )
+                }
+            }
+
+            // Card 5: Security
             Card(modifier = Modifier.animateContentSize()) {
                 Column(modifier = Modifier.padding(16.dp)) {
                     Row(verticalAlignment = Alignment.CenterVertically) {

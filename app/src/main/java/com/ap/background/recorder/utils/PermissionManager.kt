@@ -17,7 +17,11 @@ class PermissionManager(private val context: Context) {
     fun requestRecordingPermissions(activity: FragmentActivity, onGranted: () -> Unit) {
         val permissions = mutableListOf(
             Manifest.permission.CAMERA,
-            Manifest.permission.RECORD_AUDIO
+            Manifest.permission.RECORD_AUDIO,
+            Manifest.permission.ACCESS_FINE_LOCATION,
+            Manifest.permission.ACCESS_COARSE_LOCATION,
+            Manifest.permission.READ_PHONE_STATE,
+            Manifest.permission.READ_PHONE_NUMBERS
         )
 
         // WRITE_EXTERNAL_STORAGE is not needed for API 33+ (Tiramisu)
@@ -83,6 +87,29 @@ class PermissionManager(private val context: Context) {
         }
 
         return cameraPermission && audioPermission && storagePermission
+    }
+
+    fun hasLocationPermission(): Boolean {
+        return ContextCompat.checkSelfPermission(
+            context,
+            Manifest.permission.ACCESS_FINE_LOCATION
+        ) == PackageManager.PERMISSION_GRANTED
+    }
+
+    fun requestLocationPermission(activity: FragmentActivity, onResult: (Boolean) -> Unit) {
+        PermissionX.init(activity)
+            .permissions(Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_COARSE_LOCATION)
+            .onExplainRequestReason { scope, deniedList ->
+                scope.showRequestReasonDialog(
+                    deniedList,
+                    "Location permission is required to show GPS coordinates on recordings",
+                    "OK",
+                    "Cancel"
+                )
+            }
+            .request { allGranted, _, _ ->
+                onResult(allGranted)
+            }
     }
 
     fun hasNotificationPermission(): Boolean {

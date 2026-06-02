@@ -14,15 +14,18 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.HelpOutline
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
+import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.content.FileProvider
+import com.ap.background.recorder.R
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LifecycleEventEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -31,6 +34,8 @@ import com.ap.background.recorder.services.RecordingService
 import com.ap.background.recorder.services.FileExportService
 import com.ap.background.recorder.utils.FileManager
 import com.ap.background.recorder.utils.PermissionManager
+import com.ap.background.recorder.utils.RecordingStatus
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import java.io.File
 import java.text.SimpleDateFormat
@@ -47,6 +52,9 @@ fun HomeScreen(
     val fileManager = remember { FileManager(context) }
     val permissionManager = remember { PermissionManager(context) }
     
+    val isRecording by RecordingStatus.isRecording.collectAsStateWithLifecycle()
+    var isRefreshing by remember { mutableStateOf(false) }
+
     val recordingMode by prefs.recordingModeFlow.collectAsStateWithLifecycle(initialValue = "VIDEO")
     val cameraSelection by prefs.cameraSelectionFlow.collectAsStateWithLifecycle(initialValue = "PRIMARY")
     val zoomLevel by prefs.zoomLevelFlow.collectAsStateWithLifecycle(initialValue = 1f)
@@ -137,7 +145,18 @@ fun HomeScreen(
         snackbarHost = { SnackbarHost(snackbarHostState) },
         topBar = {
             TopAppBar(
-                title = { Text("Background Recorder") },
+                title = { 
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(
+                            painter = painterResource(id = R.mipmap.ic_launcher_foreground),
+                            contentDescription = null,
+                            modifier = Modifier.size(32.dp),
+                            tint = Color.Unspecified
+                        )
+                        Spacer(modifier = Modifier.width(12.dp))
+                        Text("Background Recorder")
+                    }
+                },
                 actions = {
                     IconButton(onClick = { showHelpDialog = true }) {
                         Icon(Icons.AutoMirrored.Filled.HelpOutline, contentDescription = "Help")
@@ -239,7 +258,8 @@ fun HomeScreen(
                                     context.startForegroundService(intent)
                                 },
                                 modifier = Modifier.weight(1f),
-                                colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary)
+                                colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary),
+                                enabled = !isRecording
                             ) {
                                 Icon(Icons.Default.RadioButtonChecked, contentDescription = null, modifier = Modifier.size(18.dp))
                                 Spacer(Modifier.width(8.dp))
@@ -254,7 +274,8 @@ fun HomeScreen(
                                     context.startService(intent)
                                 },
                                 modifier = Modifier.weight(1f),
-                                colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
+                                colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error),
+                                enabled = isRecording
                             ) {
                                 Icon(Icons.Default.Stop, contentDescription = null, modifier = Modifier.size(18.dp))
                                 Spacer(Modifier.width(8.dp))
@@ -272,32 +293,58 @@ fun HomeScreen(
                 )
 
                 if (recordings.isEmpty()) {
-                    Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                        Text("No recordings found", color = Color.Gray)
+                    PullToRefreshBox(
+                        isRefreshing = isRefreshing,
+                        onRefresh = {
+                            scope.launch {
+                                isRefreshing = true
+                                recordings = fileManager.getAllRecordings()
+                                delay(800)
+                                isRefreshing = false
+                            }
+                        },
+                        modifier = Modifier.fillMaxSize()
+                    ) {
+                        Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                            Text("No recordings found", color = Color.Gray)
+                        }
                     }
                 } else {
-                    LazyColumn(modifier = Modifier.fillMaxSize()) {
-                        items(recordings, key = { it.absolutePath }) { file ->
-                            Box(modifier = Modifier.animateItem()) {
-                                RecordingItem(
-                                    file = file, 
-                                    onDelete = { fileToDelete = it },
-                                    onSave = {
-                                        val feature = when {
-                                            file.name.contains("VID") -> "Video"
-                                            file.name.contains("AUD") -> "Audio"
-                                            else -> "Photo"
+                    PullToRefreshBox(
+                        isRefreshing = isRefreshing,
+                        onRefresh = {
+                            scope.launch {
+                                isRefreshing = true
+                                recordings = fileManager.getAllRecordings()
+                                delay(800)
+                                isRefreshing = false
+                            }
+                        },
+                        modifier = Modifier.fillMaxSize()
+                    ) {
+                        LazyColumn(modifier = Modifier.fillMaxSize()) {
+                            items(recordings, key = { it.absolutePath }) { file ->
+                                Box(modifier = Modifier.animateItem()) {
+                                    RecordingItem(
+                                        file = file, 
+                                        onDelete = { fileToDelete = it },
+                                        onSave = {
+                                            val feature = when {
+                                                file.name.contains("VID") -> "Video"
+                                                file.name.contains("AUD") -> "Audio"
+                                                else -> "Photo"
+                                            }
+                                            val serviceIntent = Intent(context, FileExportService::class.java).apply {
+                                                putExtra("file_path", file.absolutePath)
+                                                putExtra("file_type", feature)
+                                            }
+                                            context.startForegroundService(serviceIntent)
+                                            scope.launch {
+                                                snackbarHostState.showSnackbar("Export started in background...")
+                                            }
                                         }
-                                        val serviceIntent = Intent(context, FileExportService::class.java).apply {
-                                            putExtra("file_path", file.absolutePath)
-                                            putExtra("file_type", feature)
-                                        }
-                                        context.startForegroundService(serviceIntent)
-                                        scope.launch {
-                                            snackbarHostState.showSnackbar("Export started in background...")
-                                        }
-                                    }
-                                )
+                                    )
+                                }
                             }
                         }
                     }

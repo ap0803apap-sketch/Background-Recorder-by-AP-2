@@ -43,6 +43,14 @@ class RecorderPreferences(private val context: Context) {
         val FRONT_VIDEO_RESOLUTION = stringPreferencesKey("front_video_resolution")
         val FRONT_VIDEO_FPS = intPreferencesKey("front_video_fps")
         val FRONT_PHOTO_QUALITY = intPreferencesKey("front_photo_quality")
+
+        // Overlay Settings
+        val SHOW_TIMESTAMP = booleanPreferencesKey("show_timestamp")
+        val SHOW_GPS = booleanPreferencesKey("show_gps")
+        val SHOW_APP_NAME = booleanPreferencesKey("show_app_name")
+        val SHOW_DEVICE_INFO = booleanPreferencesKey("show_device_info")
+        val SHOW_LENS_INFO = booleanPreferencesKey("show_lens_info")
+        val IS_RECORDING_ACTIVE = booleanPreferencesKey("is_recording_active")
     }
 
     val audioBitrateFlow: Flow<Int> = context.dataStore.data.map { it[AUDIO_BITRATE] ?: 128 }
@@ -68,6 +76,14 @@ class RecorderPreferences(private val context: Context) {
     val focusModeFlow: Flow<String> = context.dataStore.data.map { it[FOCUS_MODE] ?: "AUTO" }
     val zoomLevelFlow: Flow<Float> = context.dataStore.data.map { it[ZOOM_LEVEL] ?: 1f }
     val photoIntervalFlow: Flow<Int> = context.dataStore.data.map { it[PHOTO_INTERVAL] ?: 5 }
+
+    // Overlay Flows
+    val showTimestampFlow: Flow<Boolean> = context.dataStore.data.map { it[SHOW_TIMESTAMP] ?: false }
+    val showGpsFlow: Flow<Boolean> = context.dataStore.data.map { it[SHOW_GPS] ?: false }
+    val showAppNameFlow: Flow<Boolean> = context.dataStore.data.map { it[SHOW_APP_NAME] ?: false }
+    val showDeviceInfoFlow: Flow<Boolean> = context.dataStore.data.map { it[SHOW_DEVICE_INFO] ?: false }
+    val showLensInfoFlow: Flow<Boolean> = context.dataStore.data.map { it[SHOW_LENS_INFO] ?: false }
+    val isRecordingActiveFlow: Flow<Boolean> = context.dataStore.data.map { it[IS_RECORDING_ACTIVE] ?: false }
 
     suspend fun getThemeMode(): String = themeModeFlow.first()
     suspend fun setThemeMode(mode: String) {
@@ -199,6 +215,36 @@ class RecorderPreferences(private val context: Context) {
     suspend fun getFrontPhotoQuality(): Int = context.dataStore.data.map { it[FRONT_PHOTO_QUALITY] ?: 32 }.first()
     suspend fun setFrontPhotoQuality(quality: Int) {
         context.dataStore.edit { preferences -> preferences[FRONT_PHOTO_QUALITY] = quality }
+    }
+
+    // Overlay Methods
+    suspend fun isShowTimestamp(): Boolean = showTimestampFlow.first()
+    suspend fun setShowTimestamp(show: Boolean) {
+        context.dataStore.edit { it[SHOW_TIMESTAMP] = show }
+    }
+
+    suspend fun isShowGps(): Boolean = showGpsFlow.first()
+    suspend fun setShowGps(show: Boolean) {
+        context.dataStore.edit { it[SHOW_GPS] = show }
+    }
+
+    suspend fun isShowAppName(): Boolean = showAppNameFlow.first()
+    suspend fun setShowAppName(show: Boolean) {
+        context.dataStore.edit { it[SHOW_APP_NAME] = show }
+    }
+
+    suspend fun isShowDeviceInfo(): Boolean = showDeviceInfoFlow.first()
+    suspend fun setShowDeviceInfo(show: Boolean) {
+        context.dataStore.edit { it[SHOW_DEVICE_INFO] = show }
+    }
+
+    suspend fun isShowLensInfo(): Boolean = showLensInfoFlow.first()
+    suspend fun setShowLensInfo(show: Boolean) {
+        context.dataStore.edit { it[SHOW_LENS_INFO] = show }
+    }
+
+    suspend fun setRecordingActive(active: Boolean) {
+        context.dataStore.edit { it[IS_RECORDING_ACTIVE] = active }
     }
 
     // Deprecated but kept for compatibility for now if used elsewhere

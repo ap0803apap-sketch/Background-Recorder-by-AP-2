@@ -25,6 +25,7 @@ import com.ap.background.recorder.ui.screens.SplashBiometricScreen
 import com.ap.background.recorder.ui.screens.TermsScreen
 import com.ap.background.recorder.ui.theme.BackgroundRecorderTheme
 import com.ap.background.recorder.utils.PermissionManager
+import com.ap.background.recorder.utils.RecordingStatus
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
@@ -53,6 +54,8 @@ class MainActivity : FragmentActivity() {
 
         // Start Trigger services if enabled
         lifecycleScope.launch {
+            RecordingStatus.setRecording(prefs.isRecordingActiveFlow.first())
+
             if (prefs.shakeTriggerEnabledFlow.first()) {
                 startForegroundService(Intent(this@MainActivity, ShakeTriggerService::class.java))
             }

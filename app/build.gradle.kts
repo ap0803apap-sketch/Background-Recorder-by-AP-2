@@ -14,8 +14,8 @@ android {
         applicationId = "com.ap.background.recorder"
         minSdk = 31
         targetSdk = 37
-        versionCode = 2
-        versionName = "2.0.0(02-05-26)"
+        versionCode = 3
+        versionName = "3.0.0(02-06-26)"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables {
@@ -65,12 +65,13 @@ dependencies {
     implementation("androidx.fragment:fragment-ktx:1.8.5")
 
     // CameraX
-    val cameraVersion = "1.3.1"
+    val cameraVersion = "1.4.0"
     implementation("androidx.camera:camera-core:${cameraVersion}")
     implementation("androidx.camera:camera-camera2:${cameraVersion}")
     implementation("androidx.camera:camera-lifecycle:${cameraVersion}")
     implementation("androidx.camera:camera-video:${cameraVersion}")
     implementation("androidx.camera:camera-view:${cameraVersion}")
+    implementation("androidx.camera:camera-effects:${cameraVersion}")
     implementation("androidx.camera:camera-extensions:${cameraVersion}")
 
     // Lifecycle
@@ -104,6 +105,7 @@ dependencies {
 
     // Permissions
     implementation(libs.permissionx)
+    implementation(libs.play.services.location)
 
     // Coroutines
     implementation(libs.kotlinx.coroutines.android)
