@@ -19,6 +19,7 @@ import com.ap.background.recorder.data.RecorderPreferences
 import com.ap.background.recorder.services.RecordingService
 import com.ap.background.recorder.services.ShakeTriggerService
 import com.ap.background.recorder.services.SmsTriggerService
+import com.ap.background.recorder.services.TimeTriggerService
 import com.ap.background.recorder.ui.screens.HomeScreen
 import com.ap.background.recorder.ui.screens.SettingsScreen
 import com.ap.background.recorder.ui.screens.SplashBiometricScreen
@@ -54,13 +55,14 @@ class MainActivity : FragmentActivity() {
 
         // Start Trigger services if enabled
         lifecycleScope.launch {
-            RecordingStatus.setRecording(prefs.isRecordingActiveFlow.first())
-
             if (prefs.shakeTriggerEnabledFlow.first()) {
                 startForegroundService(Intent(this@MainActivity, ShakeTriggerService::class.java))
             }
             if (prefs.smsTriggerEnabledFlow.first()) {
                 startForegroundService(Intent(this@MainActivity, SmsTriggerService::class.java))
+            }
+            if (prefs.timeTriggerEnabledFlow.first()) {
+                startForegroundService(Intent(this@MainActivity, TimeTriggerService::class.java))
             }
         }
 

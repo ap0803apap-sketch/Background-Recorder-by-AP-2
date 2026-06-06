@@ -155,7 +155,7 @@ class RecordingService : LifecycleService() {
                 setAudioSource(MediaRecorder.AudioSource.MIC)
                 setOutputFormat(MediaRecorder.OutputFormat.MPEG_4)
                 setAudioEncoder(MediaRecorder.AudioEncoder.AAC)
-                setAudioChannels(2)
+                setAudioChannels(1) // Mono is more compatible
                 setAudioSamplingRate(44100)
                 setAudioEncodingBitRate(prefs.getAudioBitrate() * 1000)
                 setOutputFile(audioFile.absolutePath)

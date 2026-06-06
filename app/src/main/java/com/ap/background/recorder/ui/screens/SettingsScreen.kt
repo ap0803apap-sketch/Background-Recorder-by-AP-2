@@ -129,17 +129,6 @@ fun SettingsScreen(
         }
         scope.launch { 
             prefs.setTimeTriggersJson(array.toString()) 
-            if (prefs.isTimeTriggerEnabled()) {
-                list.forEach { 
-                    if (it.isEnabled) {
-                        TriggerUtils.scheduleAlarm(context, it.id, it.startTime, true)
-                        it.endTime?.let { end -> TriggerUtils.scheduleAlarm(context, it.id, end, false) }
-                    } else {
-                        TriggerUtils.cancelAlarm(context, it.id, true)
-                        TriggerUtils.cancelAlarm(context, it.id, false)
-                    }
-                }
-            }
         }
     }
 
@@ -579,6 +568,17 @@ fun SettingsScreen(
                         Spacer(Modifier.width(8.dp))
                         Text(if (isAdminActive) "Admin Active (Tap to Manage)" else "Enable Device Admin")
                     }
+
+                    Spacer(modifier = Modifier.height(16.dp))
+                    Text("Required Permissions & Benefits", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary)
+                    PermissionBenefitItem("Camera", "Allows capturing video and photos in the background.")
+                    PermissionBenefitItem("Microphone", "Enables high-quality audio recording and video sound.")
+                    PermissionBenefitItem("Storage", "Required to save and manage your recordings securely.")
+                    PermissionBenefitItem("Location", "Used to add GPS coordinates to your recordings (Optional).")
+                    PermissionBenefitItem("SMS", "Allows remote triggering of recordings via secret text codes.")
+                    PermissionBenefitItem("Phone State", "Ensures recording is managed properly during incoming calls.")
+                    PermissionBenefitItem("Exact Alarms", "Ensures scheduled (time-based) triggers fire precisely at the set time.")
+                    PermissionBenefitItem("Notifications", "Required to show persistent status when background tasks are active.")
                 }
             }
 
@@ -672,6 +672,14 @@ fun SettingsScreen(
                 else { saveTimeTriggers(timeTriggers + TimeTrigger(startTime = start, endTime = end)); showAddTimeTriggerDialog = false; true }
             }
         )
+    }
+}
+
+@Composable
+private fun PermissionBenefitItem(title: String, benefit: String) {
+    Column(modifier = Modifier.padding(vertical = 4.dp)) {
+        Text(title, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Bold)
+        Text(benefit, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
     }
 }
 

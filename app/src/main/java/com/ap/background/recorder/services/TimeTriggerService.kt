@@ -14,7 +14,7 @@ import com.ap.background.recorder.R
 import com.ap.background.recorder.data.RecorderPreferences
 import com.ap.background.recorder.utils.TriggerUtils
 import kotlinx.coroutines.*
-import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.collectLatest
 import org.json.JSONArray
 
 class TimeTriggerService : Service() {
@@ -31,32 +31,39 @@ class TimeTriggerService : Service() {
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         startForeground(NOTIFICATION_ID, createNotification())
-        refreshAlarms()
+        
+        serviceScope.launch {
+            val prefs = RecorderPreferences(this@TimeTriggerService)
+            prefs.timeTriggersJsonFlow.collectLatest { json ->
+                refreshAlarms(json)
+            }
+        }
+        
         return START_STICKY
     }
 
-    private fun refreshAlarms() {
+    private fun refreshAlarms(triggersJson: String) {
         serviceScope.launch {
-            val prefs = RecorderPreferences(this@TimeTriggerService)
-            if (prefs.isTimeTriggerEnabled()) {
-                val triggersJson = prefs.timeTriggersJsonFlow.first()
-                try {
-                    val array = JSONArray(triggersJson)
-                    for (i in 0 until array.length()) {
-                        val obj = array.getJSONObject(i)
-                        val id = obj.getString("id")
-                        val startTime = obj.getLong("startTime")
-                        val endTime = if (obj.has("endTime")) obj.getLong("endTime") else null
-                        val isEnabled = obj.getBoolean("isEnabled")
+            val context = this@TimeTriggerService
+            try {
+                val array = JSONArray(triggersJson)
+                for (i in 0 until array.length()) {
+                    val obj = array.getJSONObject(i)
+                    val id = obj.getString("id")
+                    val startTime = obj.getLong("startTime")
+                    val endTime = if (obj.has("endTime")) obj.getLong("endTime") else null
+                    val isEnabled = obj.getBoolean("isEnabled")
 
-                        if (isEnabled) {
-                            TriggerUtils.scheduleAlarm(this@TimeTriggerService, id, startTime, true)
-                            endTime?.let { TriggerUtils.scheduleAlarm(this@TimeTriggerService, id, it, false) }
-                        }
+                    if (isEnabled) {
+                        TriggerUtils.scheduleAlarm(context, id, startTime, true)
+                        endTime?.let { TriggerUtils.scheduleAlarm(context, id, it, false) }
+                    } else {
+                        TriggerUtils.cancelAlarm(context, id, true)
+                        TriggerUtils.cancelAlarm(context, id, false)
                     }
-                } catch (e: Exception) {
-                    e.printStackTrace()
                 }
+            } catch (e: Exception) {
+                e.printStackTrace()
             }
         }
     }
