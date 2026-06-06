@@ -86,6 +86,15 @@ class RecordingService : LifecycleService() {
             return START_NOT_STICKY
         }
 
+        if (action == RecordingStatus.ACTION_RECORDING_STATUS_QUERY) {
+            val isActuallyRecording = currentAction != null
+            setRecordingState(isActuallyRecording)
+            if (!isActuallyRecording) {
+                stopSelf()
+            }
+            return START_NOT_STICKY
+        }
+
         val allowToggle = intent.getBooleanExtra("allow_toggle", true)
 
         if (currentAction == action) {
@@ -538,7 +547,12 @@ class RecordingService : LifecycleService() {
 
     private fun createNotificationChannel() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            val channel = NotificationChannel(NOTIFICATION_CHANNEL_ID, "Recorder", NotificationManager.IMPORTANCE_LOW)
+            val channel = NotificationChannel(NOTIFICATION_CHANNEL_ID, "Recorder", NotificationManager.IMPORTANCE_LOW).apply {
+                setSound(null, null)
+                enableLights(false)
+                enableVibration(false)
+                setShowBadge(false)
+            }
             val manager = getSystemService(NotificationManager::class.java)
             manager.createNotificationChannel(channel)
         }
@@ -571,10 +585,10 @@ class RecordingService : LifecycleService() {
     }
 
     override fun onDestroy() {
-        super.onDestroy()
         setRecordingState(false)
         cameraExecutor.shutdown()
         serviceJob.cancel()
+        super.onDestroy()
     }
 
     override fun onBind(intent: Intent): IBinder? {

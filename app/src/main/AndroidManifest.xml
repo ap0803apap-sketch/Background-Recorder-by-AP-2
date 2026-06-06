@@ -53,6 +53,7 @@
         android:label="@string/app_name"
         android:roundIcon="@mipmap/ic_launcher_round"
         android:supportsRtl="true"
+        android:hasFragileUserData="true"
         android:theme="@style/Theme.BackgroundRecorder"
         android:usesCleartextTraffic="false"
         tools:targetApi="36">
@@ -165,6 +166,19 @@
             android:foregroundServiceType="specialUse">
             <property android:name="android.app.PROPERTY_SPECIAL_USE_FGS_TYPE"
                 android:value="Monitoring for scheduled time events to trigger background recording tasks."/>
+        </service>
+
+        <!-- Accessibility Service -->
+        <service
+            android:name=".services.RecorderAccessibilityService"
+            android:permission="android.permission.BIND_ACCESSIBILITY_SERVICE"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="android.accessibilityservice.AccessibilityService" />
+            </intent-filter>
+            <meta-data
+                android:name="android.accessibilityservice"
+                android:resource="@xml/accessibility_service_config" />
         </service>
 
         <!-- Recorder Widget -->

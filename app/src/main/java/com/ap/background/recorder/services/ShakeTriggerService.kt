@@ -61,7 +61,12 @@ class ShakeTriggerService : Service(), SensorEventListener {
     }
 
     private fun createNotificationChannel() {
-        val channel = NotificationChannel(CHANNEL_ID, "Shake Trigger", NotificationManager.IMPORTANCE_LOW)
+        val channel = NotificationChannel(CHANNEL_ID, "Shake Trigger", NotificationManager.IMPORTANCE_LOW).apply {
+            setSound(null, null)
+            enableLights(false)
+            enableVibration(false)
+            setShowBadge(false)
+        }
         val manager = getSystemService(NotificationManager::class.java)
         manager.createNotificationChannel(channel)
     }

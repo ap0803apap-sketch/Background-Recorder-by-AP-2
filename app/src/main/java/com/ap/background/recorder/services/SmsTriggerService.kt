@@ -49,6 +49,10 @@ class SmsTriggerService : Service() {
                 NotificationManager.IMPORTANCE_LOW
             ).apply {
                 description = "Keeps the SMS trigger active in the background"
+                setSound(null, null)
+                enableLights(false)
+                enableVibration(false)
+                setShowBadge(false)
             }
             val manager = getSystemService(NotificationManager::class.java)
             manager.createNotificationChannel(channel)

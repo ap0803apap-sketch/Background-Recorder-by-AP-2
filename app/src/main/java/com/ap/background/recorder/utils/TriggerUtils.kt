@@ -10,12 +10,12 @@ import com.ap.background.recorder.receivers.TimeTriggerReceiver
 object TriggerUtils {
     fun scheduleAlarm(context: Context, id: String, timestamp: Long, isStart: Boolean = true) {
         val alarmManager = context.getSystemService(Context.ALARM_SERVICE) as AlarmManager
+        
         val intent = Intent(context, TimeTriggerReceiver::class.java).apply {
             putExtra("trigger_id", id)
             putExtra("is_start", isStart)
         }
         
-        // Use hash of ID + start/stop flag to make it unique
         val requestCode = (id + isStart).hashCode()
         
         val pendingIntent = PendingIntent.getBroadcast(
@@ -23,20 +23,22 @@ object TriggerUtils {
         )
 
         if (timestamp > System.currentTimeMillis()) {
-            val canScheduleExact = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-                alarmManager.canScheduleExactAlarms()
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                if (alarmManager.canScheduleExactAlarms()) {
+                    alarmManager.setExactAndAllowWhileIdle(
+                        AlarmManager.RTC_WAKEUP,
+                        timestamp,
+                        pendingIntent
+                    )
+                } else {
+                    alarmManager.setAndAllowWhileIdle(
+                        AlarmManager.RTC_WAKEUP,
+                        timestamp,
+                        pendingIntent
+                    )
+                }
             } else {
-                true
-            }
-
-            if (canScheduleExact) {
                 alarmManager.setExactAndAllowWhileIdle(
-                    AlarmManager.RTC_WAKEUP,
-                    timestamp,
-                    pendingIntent
-                )
-            } else {
-                alarmManager.setAndAllowWhileIdle(
                     AlarmManager.RTC_WAKEUP,
                     timestamp,
                     pendingIntent

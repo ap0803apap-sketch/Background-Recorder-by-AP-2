@@ -81,6 +81,10 @@ class TimeTriggerService : Service() {
                 NotificationManager.IMPORTANCE_LOW
             ).apply {
                 description = "Keeps scheduled recordings active"
+                setSound(null, null)
+                enableLights(false)
+                enableVibration(false)
+                setShowBadge(false)
             }
             val manager = getSystemService(NotificationManager::class.java)
             manager.createNotificationChannel(channel)

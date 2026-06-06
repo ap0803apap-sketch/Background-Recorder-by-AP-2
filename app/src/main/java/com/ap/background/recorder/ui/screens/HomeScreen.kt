@@ -78,6 +78,14 @@ fun HomeScreen(
     var showHelpDialog by remember { mutableStateOf(false) }
     val snackbarHostState = remember { SnackbarHostState() }
 
+    LaunchedEffect(Unit) {
+        // Query current recording status from service
+        val intent = Intent(context, RecordingService::class.java).apply {
+            action = RecordingStatus.ACTION_RECORDING_STATUS_QUERY
+        }
+        context.startService(intent)
+    }
+
     LifecycleEventEffect(Lifecycle.Event.ON_RESUME) {
         recordings = fileManager.getAllRecordings()
     }

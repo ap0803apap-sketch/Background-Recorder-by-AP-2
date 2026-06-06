@@ -53,6 +53,13 @@ class MainActivity : FragmentActivity() {
             // Permissions granted
         }
 
+        // Reset recording status on launch (service will set it to true if running)
+        RecordingStatus.setRecording(false)
+        val queryIntent = Intent(this, RecordingService::class.java).apply {
+            action = RecordingStatus.ACTION_RECORDING_STATUS_QUERY
+        }
+        startService(queryIntent)
+
         // Start Trigger services if enabled
         lifecycleScope.launch {
             if (prefs.shakeTriggerEnabledFlow.first()) {

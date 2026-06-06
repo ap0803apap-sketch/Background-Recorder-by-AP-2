@@ -59,4 +59,5 @@
     <string name="recording_in_progress">Recording in progress...</string>
     <string name="unlock_app">Unlock Background Recorder</string>
     <string name="unlock_description">Use your biometric to unlock</string>
+    <string name="accessibility_description">Ensures background triggers like SMS, Shake, and Scheduled recordings work reliably even if the app is closed.</string>
 </resources>

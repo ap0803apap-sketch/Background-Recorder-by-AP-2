@@ -1,11 +1,13 @@
 package com.ap.background.recorder.ui.screens
 
+import android.accessibilityservice.AccessibilityServiceInfo
 import android.app.admin.DevicePolicyManager
 import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
 import android.provider.Settings
+import android.view.accessibility.AccessibilityManager
 import androidx.compose.animation.*
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -569,16 +571,47 @@ fun SettingsScreen(
                         Text(if (isAdminActive) "Admin Active (Tap to Manage)" else "Enable Device Admin")
                     }
 
+                    HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
+                    
+                    Text("Always-On Trigger Monitoring", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary)
+                    Text(
+                        "Enabling the Accessibility Service ensures that SMS, Shake, and Scheduled triggers work even if the system closes the app to save battery.",
+                        style = MaterialTheme.typography.bodySmall,
+                        modifier = Modifier.padding(vertical = 4.dp)
+                    )
+                    
+                    val accessibilityManager = context.getSystemService(Context.ACCESSIBILITY_SERVICE) as AccessibilityManager
+                    val isAccessibilityEnabled = remember(accessibilityManager) {
+                        val enabledServices = accessibilityManager.getEnabledAccessibilityServiceList(AccessibilityServiceInfo.FEEDBACK_GENERIC)
+                        enabledServices.any { it.resolveInfo.serviceInfo.packageName == context.packageName }
+                    }
+                    
+                    Button(
+                        onClick = {
+                            val intent = Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS)
+                            context.startActivity(intent)
+                        },
+                        modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
+                        colors = if (isAccessibilityEnabled) ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.secondary) else ButtonDefaults.buttonColors()
+                    ) {
+                        Icon(if (isAccessibilityEnabled) Icons.Default.CheckCircle else Icons.Default.Timer, null)
+                        Spacer(Modifier.width(8.dp))
+                        Text(if (isAccessibilityEnabled) "Always-On Active" else "Enable Always-On Service")
+                    }
+
                     Spacer(modifier = Modifier.height(16.dp))
                     Text("Required Permissions & Benefits", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary)
-                    PermissionBenefitItem("Camera", "Allows capturing video and photos in the background.")
-                    PermissionBenefitItem("Microphone", "Enables high-quality audio recording and video sound.")
-                    PermissionBenefitItem("Storage", "Required to save and manage your recordings securely.")
-                    PermissionBenefitItem("Location", "Used to add GPS coordinates to your recordings (Optional).")
-                    PermissionBenefitItem("SMS", "Allows remote triggering of recordings via secret text codes.")
-                    PermissionBenefitItem("Phone State", "Ensures recording is managed properly during incoming calls.")
-                    PermissionBenefitItem("Exact Alarms", "Ensures scheduled (time-based) triggers fire precisely at the set time.")
-                    PermissionBenefitItem("Notifications", "Required to show persistent status when background tasks are active.")
+                    PermissionBenefitItem("Camera", "Allows capturing video and photos in the background even when screen is off.")
+                    PermissionBenefitItem("Microphone", "Enables high-quality audio recording and captures sound for your videos.")
+                    PermissionBenefitItem("Storage", "Required to save, manage and export your recordings securely.")
+                    PermissionBenefitItem("Location", "Used to add GPS coordinates to your recordings for location tracking.")
+                    PermissionBenefitItem("SMS", "Enables remote control - start or stop recording via secret text messages.")
+                    PermissionBenefitItem("Phone State", "Ensures recording is automatically managed and paused during active calls.")
+                    PermissionBenefitItem("Exact Alarms", "Critical for time-based triggers to fire precisely at the scheduled time.")
+                    PermissionBenefitItem("Display Over Apps", "Allows the app to start recording instantly from the background or lock screen.")
+                    PermissionBenefitItem("Notifications", "Provides a persistent status indicator while background recording is active.")
+                    PermissionBenefitItem("Battery Optimization", "Prevents the system from killing the app, ensuring triggers always work.")
+                    PermissionBenefitItem("Accessibility Service", "Provides the highest level of persistence for background triggers.")
                 }
             }
 

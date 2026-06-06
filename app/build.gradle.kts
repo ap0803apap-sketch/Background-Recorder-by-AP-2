@@ -14,8 +14,8 @@ android {
         applicationId = "com.ap.background.recorder"
         minSdk = 31
         targetSdk = 37
-        versionCode = 4
-        versionName = "4.0.0(06-06-26)"
+        versionCode = 5
+        versionName = "4.0.1(06-06-26)"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables {
@@ -106,6 +106,9 @@ dependencies {
     // Permissions
     implementation(libs.permissionx)
     implementation(libs.play.services.location)
+
+    // WorkManager
+    implementation(libs.androidx.work.runtime.ktx)
 
     // Coroutines
     implementation(libs.kotlinx.coroutines.android)
