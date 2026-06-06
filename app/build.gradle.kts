@@ -14,8 +14,8 @@ android {
         applicationId = "com.ap.background.recorder"
         minSdk = 31
         targetSdk = 37
-        versionCode = 3
-        versionName = "3.0.0(02-06-26)"
+        versionCode = 4
+        versionName = "4.0.0(06-06-26)"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables {
