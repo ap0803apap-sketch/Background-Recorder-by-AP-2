@@ -78,11 +78,4 @@ A powerful and discreet Android application designed for background video, audio
 
 ---
 
-## 🤝 Contributing
-
-Contributions are welcome! Feel free to open issues or submit pull requests to improve the app.
-
----
-
 **Developer**: [AP](https://github.com/ap0803apap-sketch)
-**Version**: 1.0.0
