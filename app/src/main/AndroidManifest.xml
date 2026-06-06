@@ -22,11 +22,13 @@
     <uses-permission android:name="android.permission.VIBRATE" />
     <uses-permission android:name="android.permission.RECEIVE_SMS" />
     <uses-permission android:name="android.permission.READ_PHONE_STATE" />
+    <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM"/>
+    <uses-permission android:name="android.permission.SET_ALARM"/>
     <uses-permission android:name="android.permission.READ_PHONE_NUMBERS" />
-    <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" />
     <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
+    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
 
     <!-- Features -->
     <uses-feature
@@ -118,6 +120,16 @@
             android:enabled="true"
             android:exported="false" />
 
+        <!-- Boot Receiver -->
+        <receiver
+            android:name=".receivers.BootReceiver"
+            android:enabled="true"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="android.intent.action.BOOT_COMPLETED" />
+            </intent-filter>
+        </receiver>
+
         <!-- Shake Trigger Service -->
         <service
             android:name=".services.ShakeTriggerService"
@@ -144,6 +156,31 @@
             <property android:name="android.app.PROPERTY_SPECIAL_USE_FGS_TYPE"
                 android:value="Monitoring for specific SMS messages to trigger background recording tasks."/>
         </service>
+
+        <!-- Time Trigger Service -->
+        <service
+            android:name=".services.TimeTriggerService"
+            android:enabled="true"
+            android:exported="false"
+            android:foregroundServiceType="specialUse">
+            <property android:name="android.app.PROPERTY_SPECIAL_USE_FGS_TYPE"
+                android:value="Monitoring for scheduled time events to trigger background recording tasks."/>
+        </service>
+
+        <!-- Recorder Widget -->
+        <receiver
+            android:name=".widgets.RecorderWidgetProvider"
+            android:exported="true"
+            android:label="Background Recorder">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+                <action android:name="com.ap.background.recorder.WIDGET_CLICK" />
+                <action android:name="com.ap.background.recorder.RECORDING_STATUS_CHANGED" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/recorder_widget_info" />
+        </receiver>
 
         <!-- Device Admin Receiver -->
         <receiver

@@ -1,6 +1,8 @@
 package com.ap.background.recorder.utils
 
 import android.Manifest
+import android.app.AlarmManager
+import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
@@ -21,7 +23,8 @@ class PermissionManager(private val context: Context) {
             Manifest.permission.ACCESS_FINE_LOCATION,
             Manifest.permission.ACCESS_COARSE_LOCATION,
             Manifest.permission.READ_PHONE_STATE,
-            Manifest.permission.READ_PHONE_NUMBERS
+            Manifest.permission.READ_PHONE_NUMBERS,
+            Manifest.permission.RECEIVE_BOOT_COMPLETED
         )
 
         // WRITE_EXTERNAL_STORAGE is not needed for API 33+ (Tiramisu)
@@ -176,6 +179,27 @@ class PermissionManager(private val context: Context) {
                 Uri.parse("package:${context.packageName}")
             )
             activity.startActivity(intent)
+        }
+    }
+
+    fun canScheduleExactAlarms(): Boolean {
+        return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            val alarmManager = context.getSystemService(Context.ALARM_SERVICE) as AlarmManager
+            alarmManager.canScheduleExactAlarms()
+        } else {
+            true
+        }
+    }
+
+    fun requestScheduleExactAlarmPermission(activity: FragmentActivity) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            if (!canScheduleExactAlarms()) {
+                val intent = Intent(
+                    Settings.ACTION_REQUEST_SCHEDULE_EXACT_ALARM,
+                    Uri.parse("package:${context.packageName}")
+                )
+                activity.startActivity(intent)
+            }
         }
     }
 }

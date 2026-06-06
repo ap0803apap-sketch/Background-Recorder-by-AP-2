@@ -24,6 +24,17 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.draw.scale
+import androidx.compose.ui.viewinterop.AndroidView
+import androidx.camera.view.PreviewView
+import androidx.camera.core.CameraSelector
+import androidx.camera.core.Preview
+import androidx.camera.lifecycle.ProcessCameraProvider
+import androidx.core.content.ContextCompat
+import androidx.lifecycle.compose.LocalLifecycleOwner
+import android.util.Size
+import androidx.compose.ui.draw.clip
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.core.content.FileProvider
 import com.ap.background.recorder.R
 import androidx.lifecycle.Lifecycle
@@ -60,6 +71,7 @@ fun HomeScreen(
     val zoomLevel by prefs.zoomLevelFlow.collectAsStateWithLifecycle(initialValue = 1f)
     val focusMode by prefs.focusModeFlow.collectAsStateWithLifecycle(initialValue = "AUTO")
     val photoInterval by prefs.photoIntervalFlow.collectAsStateWithLifecycle(initialValue = 5)
+    val showPreview by prefs.showPreviewFlow.collectAsStateWithLifecycle(initialValue = false)
     
     var recordings by remember { mutableStateOf(listOf<File>()) }
     var fileToDelete by remember { mutableStateOf<File?>(null) }
@@ -168,189 +180,285 @@ fun HomeScreen(
             )
         }
     ) { paddingValues ->
-        var visible by remember { mutableStateOf(false) }
-        LaunchedEffect(Unit) { visible = true }
-
-        AnimatedVisibility(
-            visible = visible,
-            enter = fadeIn(animationSpec = tween(500)) + slideInVertically(initialOffsetY = { it / 10 }),
-            modifier = Modifier.padding(paddingValues)
+        PullToRefreshBox(
+            isRefreshing = isRefreshing,
+            onRefresh = {
+                scope.launch {
+                    isRefreshing = true
+                    recordings = fileManager.getAllRecordings()
+                    delay(800)
+                    isRefreshing = false
+                }
+            },
+            modifier = Modifier.padding(paddingValues).fillMaxSize()
         ) {
-            Column(modifier = Modifier.fillMaxSize()) {
-                // Control Panel
-                Card(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(16.dp)
-                        .animateContentSize(),
-                    elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
-                ) {
-                    Column(modifier = Modifier.padding(16.dp)) {
-                        Text("Quick Controls", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-                        Spacer(modifier = Modifier.height(8.dp))
-                        
-                        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                            ControlChip("Mode: $recordingMode", Icons.Default.Videocam) {
-                                 val next = when(recordingMode) {
-                                     "VIDEO" -> "PHOTO"
-                                     "PHOTO" -> "AUDIO"
-                                     else -> "VIDEO"
-                                 }
-                                 scope.launch { prefs.setRecordingMode(next) }
+            LazyColumn(
+                modifier = Modifier.fillMaxSize(),
+                contentPadding = PaddingValues(16.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                item {
+                    // Control Panel
+                    Card(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .animateContentSize(),
+                        elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
+                    ) {
+                        Column(modifier = Modifier.padding(16.dp)) {
+                            Text("Quick Controls", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                            Spacer(modifier = Modifier.height(8.dp))
+                            
+                            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                                ControlChip("Mode: $recordingMode", Icons.Default.Videocam) {
+                                     val next = when(recordingMode) {
+                                         "VIDEO" -> "PHOTO"
+                                         "PHOTO" -> "AUDIO"
+                                         else -> "VIDEO"
+                                     }
+                                     scope.launch { prefs.setRecordingMode(next) }
+                                }
+                                
+                                ControlChip("Cam: $cameraSelection", Icons.Default.Camera) {
+                                    val next = when(cameraSelection) {
+                                        "PRIMARY" -> "SECONDARY"
+                                        "SECONDARY" -> "FRONT"
+                                        else -> "PRIMARY"
+                                    }
+                                    scope.launch { prefs.setCameraSelection(next) }
+                                }
                             }
                             
-                            ControlChip("Cam: $cameraSelection", Icons.Default.Camera) {
-                                val next = when(cameraSelection) {
-                                    "PRIMARY" -> "SECONDARY"
-                                    "SECONDARY" -> "FRONT"
-                                    else -> "PRIMARY"
+                            Spacer(modifier = Modifier.height(8.dp))
+                            
+                            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                                ControlChip("Zoom: ${String.format(Locale.getDefault(), "%.1f", zoomLevel)}x", Icons.Default.ZoomIn) {
+                                    val next = if (zoomLevel >= 10f) 1f else zoomLevel + 1.0f
+                                    scope.launch { prefs.setZoomLevel(next) }
                                 }
-                                scope.launch { prefs.setCameraSelection(next) }
-                            }
-                        }
-                        
-                        Spacer(modifier = Modifier.height(8.dp))
-                        
-                        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                            ControlChip("Zoom: ${String.format(Locale.getDefault(), "%.1f", zoomLevel)}x", Icons.Default.ZoomIn) {
-                                val next = if (zoomLevel >= 10f) 1f else zoomLevel + 1.0f
-                                scope.launch { prefs.setZoomLevel(next) }
-                            }
-                            ControlChip("Focus: $focusMode", Icons.Default.FilterCenterFocus) {
-                                val next = if (focusMode == "AUTO") "MANUAL" else "AUTO"
-                                scope.launch { prefs.setFocusMode(next) }
-                            }
-                        }
-
-                        AnimatedVisibility(visible = recordingMode == "PHOTO") {
-                            Column {
-                                Spacer(modifier = Modifier.height(8.dp))
-                                Text(
-                                    "Photo Interval: ${photoInterval}s", 
-                                    style = MaterialTheme.typography.bodySmall,
-                                    modifier = Modifier.padding(start = 8.dp)
-                                )
-                                Slider(
-                                    value = photoInterval.toFloat(),
-                                    onValueChange = { scope.launch { prefs.setPhotoInterval(it.toInt()) } },
-                                    valueRange = 1f..60f,
-                                    steps = 59,
-                                    modifier = Modifier.padding(horizontal = 8.dp)
-                                )
-                            }
-                        }
-                        
-                        Row(
-                            modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
-                            horizontalArrangement = Arrangement.spacedBy(8.dp)
-                        ) {
-                            Button(
-                                onClick = {
-                                    val action = when (recordingMode) {
-                                        "VIDEO" -> RecordingService.ACTION_START_VIDEO
-                                        "PHOTO" -> RecordingService.ACTION_START_PHOTO
-                                        "AUDIO" -> RecordingService.ACTION_START_AUDIO
-                                        else -> RecordingService.ACTION_START_VIDEO
-                                    }
-                                    val intent = Intent(context, RecordingService::class.java).apply {
-                                        this.action = action
-                                    }
-                                    context.startForegroundService(intent)
-                                },
-                                modifier = Modifier.weight(1f),
-                                colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary),
-                                enabled = !isRecording
-                            ) {
-                                Icon(Icons.Default.RadioButtonChecked, contentDescription = null, modifier = Modifier.size(18.dp))
-                                Spacer(Modifier.width(8.dp))
-                                Text("Start")
+                                ControlChip("Focus: $focusMode", Icons.Default.FilterCenterFocus) {
+                                    val next = if (focusMode == "AUTO") "MANUAL" else "AUTO"
+                                    scope.launch { prefs.setFocusMode(next) }
+                                }
                             }
 
-                            Button(
-                                onClick = {
-                                    val intent = Intent(context, RecordingService::class.java).apply {
-                                        action = RecordingService.ACTION_STOP
-                                    }
-                                    context.startService(intent)
-                                },
-                                modifier = Modifier.weight(1f),
-                                colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error),
-                                enabled = isRecording
+                            Row(
+                                modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
                             ) {
-                                Icon(Icons.Default.Stop, contentDescription = null, modifier = Modifier.size(18.dp))
-                                Spacer(Modifier.width(8.dp))
-                                Text("Stop")
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Icon(Icons.Default.Visibility, contentDescription = null, modifier = Modifier.size(20.dp), tint = MaterialTheme.colorScheme.primary)
+                                    Spacer(Modifier.width(8.dp))
+                                    Text("Show Preview", style = MaterialTheme.typography.bodyMedium)
+                                }
+                                Switch(
+                                    checked = showPreview,
+                                    onCheckedChange = { scope.launch { prefs.setShowPreview(it) } },
+                                    modifier = Modifier.scale(0.8f)
+                                )
+                            }
+
+                            AnimatedVisibility(visible = recordingMode == "PHOTO") {
+                                Column {
+                                    Spacer(modifier = Modifier.height(8.dp))
+                                    Text(
+                                        "Photo Interval: ${photoInterval}s", 
+                                        style = MaterialTheme.typography.bodySmall,
+                                        modifier = Modifier.padding(start = 8.dp)
+                                    )
+                                    Slider(
+                                        value = photoInterval.toFloat(),
+                                        onValueChange = { scope.launch { prefs.setPhotoInterval(it.toInt()) } },
+                                        valueRange = 1f..60f,
+                                        steps = 59,
+                                        modifier = Modifier.padding(horizontal = 8.dp)
+                                    )
+                                }
+                            }
+                            
+                            Row(
+                                modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                Button(
+                                    onClick = {
+                                        val action = when (recordingMode) {
+                                            "VIDEO" -> RecordingService.ACTION_START_VIDEO
+                                            "PHOTO" -> RecordingService.ACTION_START_PHOTO
+                                            "AUDIO" -> RecordingService.ACTION_START_AUDIO
+                                            else -> RecordingService.ACTION_START_VIDEO
+                                        }
+                                        val intent = Intent(context, RecordingService::class.java).apply {
+                                            this.action = action
+                                        }
+                                        context.startForegroundService(intent)
+                                    },
+                                    modifier = Modifier.weight(1f),
+                                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary),
+                                    enabled = !isRecording
+                                ) {
+                                    Icon(Icons.Default.RadioButtonChecked, contentDescription = null, modifier = Modifier.size(18.dp))
+                                    Spacer(Modifier.width(8.dp))
+                                    Text("Start")
+                                }
+
+                                Button(
+                                    onClick = {
+                                        val intent = Intent(context, RecordingService::class.java).apply {
+                                            action = RecordingService.ACTION_STOP
+                                        }
+                                        context.startService(intent)
+                                    },
+                                    modifier = Modifier.weight(1f),
+                                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error),
+                                    enabled = isRecording
+                                ) {
+                                    Icon(Icons.Default.Stop, contentDescription = null, modifier = Modifier.size(18.dp))
+                                    Spacer(Modifier.width(8.dp))
+                                    Text("Stop")
+                                }
                             }
                         }
                     }
                 }
 
-                Text(
-                    "Recent Recordings",
-                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.Bold
-                )
+                if (showPreview) {
+                    item {
+                        CameraPreviewSection(prefs)
+                    }
+                }
+
+                item {
+                    Text(
+                        "Recent Recordings",
+                        modifier = Modifier.padding(vertical = 8.dp),
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
 
                 if (recordings.isEmpty()) {
-                    PullToRefreshBox(
-                        isRefreshing = isRefreshing,
-                        onRefresh = {
-                            scope.launch {
-                                isRefreshing = true
-                                recordings = fileManager.getAllRecordings()
-                                delay(800)
-                                isRefreshing = false
-                            }
-                        },
-                        modifier = Modifier.fillMaxSize()
-                    ) {
-                        Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                    item {
+                        Box(modifier = Modifier.fillMaxWidth().height(200.dp), contentAlignment = Alignment.Center) {
                             Text("No recordings found", color = Color.Gray)
                         }
                     }
                 } else {
-                    PullToRefreshBox(
-                        isRefreshing = isRefreshing,
-                        onRefresh = {
-                            scope.launch {
-                                isRefreshing = true
-                                recordings = fileManager.getAllRecordings()
-                                delay(800)
-                                isRefreshing = false
-                            }
-                        },
-                        modifier = Modifier.fillMaxSize()
-                    ) {
-                        LazyColumn(modifier = Modifier.fillMaxSize()) {
-                            items(recordings, key = { it.absolutePath }) { file ->
-                                Box(modifier = Modifier.animateItem()) {
-                                    RecordingItem(
-                                        file = file, 
-                                        onDelete = { fileToDelete = it },
-                                        onSave = {
-                                            val feature = when {
-                                                file.name.contains("VID") -> "Video"
-                                                file.name.contains("AUD") -> "Audio"
-                                                else -> "Photo"
-                                            }
-                                            val serviceIntent = Intent(context, FileExportService::class.java).apply {
-                                                putExtra("file_path", file.absolutePath)
-                                                putExtra("file_type", feature)
-                                            }
-                                            context.startForegroundService(serviceIntent)
-                                            scope.launch {
-                                                snackbarHostState.showSnackbar("Export started in background...")
-                                            }
-                                        }
-                                    )
+                    items(recordings, key = { it.absolutePath }) { file ->
+                        Box(modifier = Modifier.animateItem()) {
+                            RecordingItem(
+                                file = file, 
+                                onDelete = { fileToDelete = it },
+                                onSave = {
+                                    val feature = when {
+                                        file.name.contains("VID") -> "Video"
+                                        file.name.contains("AUD") -> "Audio"
+                                        else -> "Photo"
+                                    }
+                                    val serviceIntent = Intent(context, FileExportService::class.java).apply {
+                                        putExtra("file_path", file.absolutePath)
+                                        putExtra("file_type", feature)
+                                    }
+                                    context.startForegroundService(serviceIntent)
+                                    scope.launch {
+                                        snackbarHostState.showSnackbar("Export started in background...")
+                                    }
                                 }
-                            }
+                            )
                         }
                     }
                 }
             }
         }
+    }
+}
+
+@Composable
+fun CameraPreviewSection(prefs: RecorderPreferences) {
+    val context = LocalContext.current
+    val lifecycleOwner = LocalLifecycleOwner.current
+    val cameraSelection by prefs.cameraSelectionFlow.collectAsStateWithLifecycle(initialValue = "PRIMARY")
+    val aspectRatio by prefs.aspectRatioFlow.collectAsStateWithLifecycle(initialValue = "16:9")
+    val frontAspectRatio by prefs.frontAspectRatioFlow.collectAsStateWithLifecycle(initialValue = "16:9")
+    val orientation by prefs.orientationFlow.collectAsStateWithLifecycle(initialValue = "AUTO")
+    val frontOrientation by prefs.frontOrientationFlow.collectAsStateWithLifecycle(initialValue = "AUTO")
+    val zoomLevel by prefs.zoomLevelFlow.collectAsStateWithLifecycle(initialValue = 1f)
+
+    val currentAspectRatio = if (cameraSelection == "FRONT") frontAspectRatio else aspectRatio
+    val currentOrientation = if (cameraSelection == "FRONT") frontOrientation else orientation
+
+    val targetAspectRatio = when (currentAspectRatio) {
+        "4:3" -> androidx.camera.core.AspectRatio.RATIO_4_3
+        "16:9" -> androidx.camera.core.AspectRatio.RATIO_16_9
+        "1:1" -> androidx.camera.core.AspectRatio.RATIO_4_3 
+        else -> androidx.camera.core.AspectRatio.RATIO_16_9
+    }
+
+    val boxModifier = if (currentOrientation == "LANDSCAPE") {
+        Modifier
+            .fillMaxWidth()
+            .aspectRatio(if (targetAspectRatio == androidx.camera.core.AspectRatio.RATIO_4_3) 4/3f else 16/9f)
+    } else {
+        Modifier
+            .fillMaxWidth()
+            .aspectRatio(if (targetAspectRatio == androidx.camera.core.AspectRatio.RATIO_4_3) 3/4f else 9/16f)
+            .heightIn(max = 400.dp)
+    }
+
+    Card(
+        modifier = boxModifier
+            .clip(RoundedCornerShape(12.dp)),
+        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+    ) {
+        AndroidView(
+            factory = { ctx ->
+                PreviewView(ctx).apply {
+                    scaleType = PreviewView.ScaleType.FILL_CENTER
+                }
+            },
+            modifier = Modifier.fillMaxSize(),
+            update = { previewView ->
+                val cameraProviderFuture = ProcessCameraProvider.getInstance(context)
+                cameraProviderFuture.addListener({
+                    val cameraProvider = cameraProviderFuture.get()
+                    
+                    val targetRotation = when (currentOrientation) {
+                        "PORTRAIT" -> android.view.Surface.ROTATION_0
+                        "LANDSCAPE" -> android.view.Surface.ROTATION_90
+                        else -> android.view.Surface.ROTATION_0
+                    }
+
+                    val preview = Preview.Builder()
+                        .setTargetAspectRatio(targetAspectRatio)
+                        .setTargetRotation(targetRotation)
+                        .build()
+                    
+                    val cameraSelector = when (cameraSelection) {
+                        "FRONT" -> CameraSelector.DEFAULT_FRONT_CAMERA
+                        "SECONDARY" -> {
+                            CameraSelector.Builder()
+                                .requireLensFacing(CameraSelector.LENS_FACING_BACK)
+                                .build()
+                        }
+                        else -> CameraSelector.DEFAULT_BACK_CAMERA
+                    }
+
+                    try {
+                        cameraProvider.unbindAll()
+                        val camera = cameraProvider.bindToLifecycle(
+                            lifecycleOwner,
+                            cameraSelector,
+                            preview
+                        )
+                        camera.cameraControl.setZoomRatio(zoomLevel)
+                        preview.setSurfaceProvider(previewView.surfaceProvider)
+                    } catch (e: Exception) {
+                        e.printStackTrace()
+                    }
+                }, ContextCompat.getMainExecutor(context))
+            }
+        )
     }
 }
 

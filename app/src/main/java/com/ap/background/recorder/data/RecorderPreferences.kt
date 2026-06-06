@@ -33,16 +33,23 @@ class RecorderPreferences(private val context: Context) {
         val IS_SHAKE_TOGGLE_OFF_ENABLED = booleanPreferencesKey("is_shake_toggle_off_enabled")
         val IS_SMS_TRIGGER_ENABLED = booleanPreferencesKey("is_sms_trigger_enabled")
         val IS_SMS_TOGGLE_OFF_ENABLED = booleanPreferencesKey("is_sms_toggle_off_enabled")
+        val IS_WIDGET_TRIGGER_ENABLED = booleanPreferencesKey("is_widget_trigger_enabled")
         val SMS_TRIGGER_TYPE = stringPreferencesKey("sms_trigger_type") // "CUSTOM", "CODE"
         val SMS_TRIGGER_TEXT = stringPreferencesKey("sms_trigger_text")
         val IS_TIME_TRIGGER_ENABLED = booleanPreferencesKey("is_time_trigger_enabled")
         val TIME_TRIGGERS_JSON = stringPreferencesKey("time_triggers_json")
         val SHAKE_INTENSITY = floatPreferencesKey("shake_intensity")
         
+        // Camera Settings
+        val ASPECT_RATIO = stringPreferencesKey("aspect_ratio") // "4:3", "16:9", "FULL"
+        val ORIENTATION = stringPreferencesKey("orientation") // "AUTO", "PORTRAIT", "LANDSCAPE"
+        
         // Front Camera Specific Settings
         val FRONT_VIDEO_RESOLUTION = stringPreferencesKey("front_video_resolution")
         val FRONT_VIDEO_FPS = intPreferencesKey("front_video_fps")
         val FRONT_PHOTO_QUALITY = intPreferencesKey("front_photo_quality")
+        val FRONT_ASPECT_RATIO = stringPreferencesKey("front_aspect_ratio")
+        val FRONT_ORIENTATION = stringPreferencesKey("front_orientation")
 
         // Overlay Settings
         val SHOW_TIMESTAMP = booleanPreferencesKey("show_timestamp")
@@ -51,6 +58,7 @@ class RecorderPreferences(private val context: Context) {
         val SHOW_DEVICE_INFO = booleanPreferencesKey("show_device_info")
         val SHOW_LENS_INFO = booleanPreferencesKey("show_lens_info")
         val IS_RECORDING_ACTIVE = booleanPreferencesKey("is_recording_active")
+        val SHOW_PREVIEW = booleanPreferencesKey("show_preview")
     }
 
     val audioBitrateFlow: Flow<Int> = context.dataStore.data.map { it[AUDIO_BITRATE] ?: 128 }
@@ -65,6 +73,7 @@ class RecorderPreferences(private val context: Context) {
     val timeTriggerEnabledFlow: Flow<Boolean> = context.dataStore.data.map { it[IS_TIME_TRIGGER_ENABLED] ?: false }
     val timeTriggersJsonFlow: Flow<String> = context.dataStore.data.map { it[TIME_TRIGGERS_JSON] ?: "[]" }
     val shakeIntensityFlow: Flow<Float> = context.dataStore.data.map { it[SHAKE_INTENSITY] ?: 50f }
+    val widgetTriggerEnabledFlow: Flow<Boolean> = context.dataStore.data.map { it[IS_WIDGET_TRIGGER_ENABLED] ?: true }
 
     val themeModeFlow: Flow<String> = context.dataStore.data.map { it[THEME_MODE] ?: "SYSTEM" }
     val dynamicColorFlow: Flow<Boolean> = context.dataStore.data.map { it[IS_DYNAMIC_COLOR] ?: true }
@@ -76,6 +85,10 @@ class RecorderPreferences(private val context: Context) {
     val focusModeFlow: Flow<String> = context.dataStore.data.map { it[FOCUS_MODE] ?: "AUTO" }
     val zoomLevelFlow: Flow<Float> = context.dataStore.data.map { it[ZOOM_LEVEL] ?: 1f }
     val photoIntervalFlow: Flow<Int> = context.dataStore.data.map { it[PHOTO_INTERVAL] ?: 5 }
+    val aspectRatioFlow: Flow<String> = context.dataStore.data.map { it[ASPECT_RATIO] ?: "16:9" }
+    val orientationFlow: Flow<String> = context.dataStore.data.map { it[ORIENTATION] ?: "AUTO" }
+    val frontAspectRatioFlow: Flow<String> = context.dataStore.data.map { it[FRONT_ASPECT_RATIO] ?: "16:9" }
+    val frontOrientationFlow: Flow<String> = context.dataStore.data.map { it[FRONT_ORIENTATION] ?: "AUTO" }
 
     // Overlay Flows
     val showTimestampFlow: Flow<Boolean> = context.dataStore.data.map { it[SHOW_TIMESTAMP] ?: false }
@@ -84,6 +97,7 @@ class RecorderPreferences(private val context: Context) {
     val showDeviceInfoFlow: Flow<Boolean> = context.dataStore.data.map { it[SHOW_DEVICE_INFO] ?: false }
     val showLensInfoFlow: Flow<Boolean> = context.dataStore.data.map { it[SHOW_LENS_INFO] ?: false }
     val isRecordingActiveFlow: Flow<Boolean> = context.dataStore.data.map { it[IS_RECORDING_ACTIVE] ?: false }
+    val showPreviewFlow: Flow<Boolean> = context.dataStore.data.map { it[SHOW_PREVIEW] ?: false }
 
     suspend fun getThemeMode(): String = themeModeFlow.first()
     suspend fun setThemeMode(mode: String) {
@@ -200,6 +214,22 @@ class RecorderPreferences(private val context: Context) {
     suspend fun setShakeIntensity(intensity: Float) {
         context.dataStore.edit { it[SHAKE_INTENSITY] = intensity }
     }
+
+    suspend fun isWidgetTriggerEnabled(): Boolean = widgetTriggerEnabledFlow.first()
+    suspend fun setWidgetTriggerEnabled(enabled: Boolean) {
+        context.dataStore.edit { it[IS_WIDGET_TRIGGER_ENABLED] = enabled }
+    }
+    
+    // Camera Methods
+    suspend fun getAspectRatio(): String = context.dataStore.data.map { it[ASPECT_RATIO] ?: "16:9" }.first()
+    suspend fun setAspectRatio(ratio: String) {
+        context.dataStore.edit { it[ASPECT_RATIO] = ratio }
+    }
+
+    suspend fun getOrientation(): String = context.dataStore.data.map { it[ORIENTATION] ?: "AUTO" }.first()
+    suspend fun setOrientation(orientation: String) {
+        context.dataStore.edit { it[ORIENTATION] = orientation }
+    }
     
     // Front Camera Methods
     suspend fun getFrontVideoResolution(): String = context.dataStore.data.map { it[FRONT_VIDEO_RESOLUTION] ?: "1080p" }.first()
@@ -215,6 +245,16 @@ class RecorderPreferences(private val context: Context) {
     suspend fun getFrontPhotoQuality(): Int = context.dataStore.data.map { it[FRONT_PHOTO_QUALITY] ?: 32 }.first()
     suspend fun setFrontPhotoQuality(quality: Int) {
         context.dataStore.edit { preferences -> preferences[FRONT_PHOTO_QUALITY] = quality }
+    }
+
+    suspend fun getFrontAspectRatio(): String = context.dataStore.data.map { it[FRONT_ASPECT_RATIO] ?: "16:9" }.first()
+    suspend fun setFrontAspectRatio(ratio: String) {
+        context.dataStore.edit { it[FRONT_ASPECT_RATIO] = ratio }
+    }
+
+    suspend fun getFrontOrientation(): String = context.dataStore.data.map { it[FRONT_ORIENTATION] ?: "AUTO" }.first()
+    suspend fun setFrontOrientation(orientation: String) {
+        context.dataStore.edit { it[FRONT_ORIENTATION] = orientation }
     }
 
     // Overlay Methods
@@ -245,6 +285,11 @@ class RecorderPreferences(private val context: Context) {
 
     suspend fun setRecordingActive(active: Boolean) {
         context.dataStore.edit { it[IS_RECORDING_ACTIVE] = active }
+    }
+
+    suspend fun isShowPreview(): Boolean = showPreviewFlow.first()
+    suspend fun setShowPreview(show: Boolean) {
+        context.dataStore.edit { it[SHOW_PREVIEW] = show }
     }
 
     // Deprecated but kept for compatibility for now if used elsewhere

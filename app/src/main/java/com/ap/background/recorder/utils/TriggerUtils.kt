@@ -4,6 +4,7 @@ import android.app.AlarmManager
 import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
+import android.os.Build
 import com.ap.background.recorder.receivers.TimeTriggerReceiver
 
 object TriggerUtils {
@@ -22,7 +23,13 @@ object TriggerUtils {
         )
 
         if (timestamp > System.currentTimeMillis()) {
-            if (alarmManager.canScheduleExactAlarms()) {
+            val canScheduleExact = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                alarmManager.canScheduleExactAlarms()
+            } else {
+                true
+            }
+
+            if (canScheduleExact) {
                 alarmManager.setExactAndAllowWhileIdle(
                     AlarmManager.RTC_WAKEUP,
                     timestamp,

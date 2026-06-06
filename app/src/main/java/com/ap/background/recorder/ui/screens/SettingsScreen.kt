@@ -1,7 +1,11 @@
 package com.ap.background.recorder.ui.screens
 
+import android.app.admin.DevicePolicyManager
+import android.content.ComponentName
+import android.content.Context
 import android.content.Intent
 import android.net.Uri
+import android.provider.Settings
 import androidx.compose.animation.*
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -28,8 +32,10 @@ import androidx.fragment.app.FragmentActivity
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.ap.background.recorder.R
 import com.ap.background.recorder.data.RecorderPreferences
+import com.ap.background.recorder.receivers.RecorderDeviceAdminReceiver
 import com.ap.background.recorder.services.ShakeTriggerService
 import com.ap.background.recorder.services.SmsTriggerService
+import com.ap.background.recorder.services.TimeTriggerService
 import com.ap.background.recorder.utils.PermissionManager
 import com.ap.background.recorder.utils.TriggerUtils
 import kotlinx.coroutines.launch
@@ -79,6 +85,7 @@ fun SettingsScreen(
     val isTimeEnabled by prefs.timeTriggerEnabledFlow.collectAsStateWithLifecycle(initialValue = false)
     val timeTriggersJson by prefs.timeTriggersJsonFlow.collectAsStateWithLifecycle(initialValue = "[]")
     val shakeIntensity by prefs.shakeIntensityFlow.collectAsStateWithLifecycle(initialValue = 50f)
+    val isWidgetTriggerEnabled by prefs.widgetTriggerEnabledFlow.collectAsStateWithLifecycle(initialValue = true)
 
     // UI States for Dialogs
     var showSmsCustomEditDialog by remember { mutableStateOf(false) }
@@ -140,17 +147,27 @@ fun SettingsScreen(
     var videoResolution by remember { mutableStateOf("1080p") }
     var videoFps by remember { mutableIntStateOf(30) }
     var photoMegapixel by remember { mutableIntStateOf(48) }
+    var aspectRatio by remember { mutableStateOf("16:9") }
+    var orientation by remember { mutableStateOf("AUTO") }
+    
     var frontVideoResolution by remember { mutableStateOf("1080p") }
     var frontVideoFps by remember { mutableIntStateOf(30) }
     var frontPhotoQuality by remember { mutableIntStateOf(32) }
+    var frontAspectRatio by remember { mutableStateOf("16:9") }
+    var frontOrientation by remember { mutableStateOf("AUTO") }
 
     LaunchedEffect(Unit) {
         videoResolution = prefs.getVideoResolution()
         videoFps = prefs.getVideoFps()
         photoMegapixel = prefs.getPhotoMegapixel()
+        aspectRatio = prefs.getAspectRatio()
+        orientation = prefs.getOrientation()
+        
         frontVideoResolution = prefs.getFrontVideoResolution()
         frontVideoFps = prefs.getFrontVideoFps()
         frontPhotoQuality = prefs.getFrontPhotoQuality()
+        frontAspectRatio = prefs.getFrontAspectRatio()
+        frontOrientation = prefs.getFrontOrientation()
     }
 
     Scaffold(
@@ -223,6 +240,24 @@ fun SettingsScreen(
                         photoMegapixel = next
                         scope.launch { prefs.setPhotoMegapixel(next) }
                     }
+                    SettingOption("Aspect Ratio", aspectRatio) {
+                        val next = when (aspectRatio) {
+                            "16:9" -> "4:3"
+                            "4:3" -> "1:1"
+                            else -> "16:9"
+                        }
+                        aspectRatio = next
+                        scope.launch { prefs.setAspectRatio(next) }
+                    }
+                    SettingOption("Orientation", orientation) {
+                        val next = when (orientation) {
+                            "AUTO" -> "PORTRAIT"
+                            "PORTRAIT" -> "LANDSCAPE"
+                            else -> "AUTO"
+                        }
+                        orientation = next
+                        scope.launch { prefs.setOrientation(next) }
+                    }
 
                     HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
                     
@@ -242,6 +277,24 @@ fun SettingsScreen(
                         frontPhotoQuality = next
                         scope.launch { prefs.setFrontPhotoQuality(next) }
                     }
+                    SettingOption("Aspect Ratio", frontAspectRatio) {
+                        val next = when (frontAspectRatio) {
+                            "16:9" -> "4:3"
+                            "4:3" -> "1:1"
+                            else -> "16:9"
+                        }
+                        frontAspectRatio = next
+                        scope.launch { prefs.setFrontAspectRatio(next) }
+                    }
+                    SettingOption("Orientation", frontOrientation) {
+                        val next = when (frontOrientation) {
+                            "AUTO" -> "PORTRAIT"
+                            "PORTRAIT" -> "LANDSCAPE"
+                            else -> "AUTO"
+                        }
+                        frontOrientation = next
+                        scope.launch { prefs.setFrontOrientation(next) }
+                    }
                 }
             }
 
@@ -255,6 +308,7 @@ fun SettingsScreen(
                     
                     SettingSwitch("Side Key (Power/Assistant)", true, {}, false, icon = painterResource(R.drawable.side))
                     SettingSwitch("Quick Settings Panel", true, {}, false, icon = painterResource(R.drawable.panel))
+                    SettingSwitch("Widget Trigger", isWidgetTriggerEnabled, { scope.launch { prefs.setWidgetTriggerEnabled(it) } }, icon = Icons.Default.Widgets)
 
                     // Shake Trigger
                     SettingSwitch(
@@ -373,15 +427,44 @@ fun SettingsScreen(
                     SettingSwitch(
                         label = "Time-Based Trigger",
                         checked = isTimeEnabled,
-                        onCheckedChange = { 
-                            scope.launch { 
-                                prefs.setTimeTriggerEnabled(it)
-                                if (!it) timeTriggers.forEach { t -> TriggerUtils.cancelAlarm(context, t.id, true); TriggerUtils.cancelAlarm(context, t.id, false) }
-                                else timeTriggers.forEach { t -> if (t.isEnabled) { TriggerUtils.scheduleAlarm(context, t.id, t.startTime, true); t.endTime?.let { e -> TriggerUtils.scheduleAlarm(context, t.id, e, false) } } }
-                            } 
+                        onCheckedChange = { checked ->
+                            if (checked) {
+                                if (permissionManager.canScheduleExactAlarms()) {
+                                    scope.launch { 
+                                        prefs.setTimeTriggerEnabled(true)
+                                        val intent = Intent(context, TimeTriggerService::class.java)
+                                        context.startForegroundService(intent)
+                                    }
+                                } else {
+                                    activity?.let { permissionManager.requestScheduleExactAlarmPermission(it) }
+                                }
+                            } else {
+                                scope.launch { 
+                                    prefs.setTimeTriggerEnabled(false)
+                                    val intent = Intent(context, TimeTriggerService::class.java)
+                                    context.stopService(intent)
+                                    timeTriggers.forEach { t -> TriggerUtils.cancelAlarm(context, t.id, true); TriggerUtils.cancelAlarm(context, t.id, false) }
+                                }
+                            }
                         },
                         icon = painterResource(R.drawable.time)
                     )
+                    
+                    if (isTimeEnabled && !permissionManager.canScheduleExactAlarms()) {
+                        Text(
+                            "Exact alarm permission is required for reliable time-based triggers. Tap 'Allow' to enable.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.error,
+                            modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)
+                        )
+                        Button(
+                            onClick = { activity?.let { permissionManager.requestScheduleExactAlarmPermission(it) } },
+                            modifier = Modifier.padding(horizontal = 16.dp).fillMaxWidth()
+                        ) {
+                            Text("Allow Exact Alarms")
+                        }
+                    }
+
                     AnimatedVisibility(
                         visible = isTimeEnabled,
                         enter = expandVertically() + fadeIn(),
@@ -465,7 +548,37 @@ fun SettingsScreen(
                         Icon(painterResource(R.drawable.security), null, modifier = Modifier.size(24.dp).padding(end = 8.dp), tint = MaterialTheme.colorScheme.primary)
                         Text("Security", style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.primary)
                     }
+                    
                     SettingSwitch("Biometric Lock", isBiometricEnabled, { scope.launch { prefs.setBiometricEnabled(it) } }, icon = painterResource(R.drawable.fingerprint))
+                    
+                    HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
+                    
+                    Text("Device Administrator", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary)
+                    Text(
+                        "Enabling Device Admin prevents the app from being easily uninstalled by unauthorized users, providing an extra layer of security for your recordings.",
+                        style = MaterialTheme.typography.bodySmall,
+                        modifier = Modifier.padding(vertical = 4.dp)
+                    )
+                    
+                    val dpm = context.getSystemService(Context.DEVICE_POLICY_SERVICE) as DevicePolicyManager
+                    val adminComponent = ComponentName(context, RecorderDeviceAdminReceiver::class.java)
+                    val isAdminActive = dpm.isAdminActive(adminComponent)
+                    
+                    Button(
+                        onClick = {
+                            val intent = Intent(DevicePolicyManager.ACTION_ADD_DEVICE_ADMIN).apply {
+                                putExtra(DevicePolicyManager.EXTRA_DEVICE_ADMIN, adminComponent)
+                                putExtra(DevicePolicyManager.EXTRA_ADD_EXPLANATION, "Device Admin is used to prevent unauthorized uninstallation.")
+                            }
+                            context.startActivity(intent)
+                        },
+                        modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
+                        colors = if (isAdminActive) ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.secondary) else ButtonDefaults.buttonColors()
+                    ) {
+                        Icon(if (isAdminActive) Icons.Default.Shield else Icons.Default.ShieldMoon, null)
+                        Spacer(Modifier.width(8.dp))
+                        Text(if (isAdminActive) "Admin Active (Tap to Manage)" else "Enable Device Admin")
+                    }
                 }
             }
 
@@ -509,9 +622,6 @@ fun SettingsScreen(
                     AnimatedVisibility(visible = isLicenseExpanded) {
                         Text(LICENSE_TEXT, style = MaterialTheme.typography.bodySmall, modifier = Modifier.padding(vertical = 8.dp))
                     }
-
-                    Spacer(modifier = Modifier.height(8.dp))
-                    Text("Version 1.0.0", style = MaterialTheme.typography.bodySmall, modifier = Modifier.align(Alignment.CenterHorizontally))
                 }
             }
         }
@@ -591,14 +701,21 @@ private fun SettingSwitch(
     checked: Boolean, 
     onCheckedChange: (Boolean) -> Unit, 
     enabled: Boolean = true,
-    icon: androidx.compose.ui.graphics.painter.Painter? = null
+    icon: Any? = null
 ) {
     Row(
         modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
         if (icon != null) {
-            Icon(icon, null, modifier = Modifier.size(24.dp).padding(end = 12.dp), tint = MaterialTheme.colorScheme.primary)
+            when (icon) {
+                is androidx.compose.ui.graphics.painter.Painter -> {
+                    Icon(icon, null, modifier = Modifier.size(24.dp).padding(end = 12.dp), tint = MaterialTheme.colorScheme.primary)
+                }
+                is androidx.compose.ui.graphics.vector.ImageVector -> {
+                    Icon(icon, null, modifier = Modifier.size(24.dp).padding(end = 12.dp), tint = MaterialTheme.colorScheme.primary)
+                }
+            }
         }
         Text(label, Modifier.weight(1f), color = if (enabled) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurfaceVariant)
         Switch(checked, onCheckedChange, enabled = enabled)

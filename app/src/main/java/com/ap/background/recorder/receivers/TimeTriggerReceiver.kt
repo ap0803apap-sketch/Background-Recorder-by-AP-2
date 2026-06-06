@@ -7,7 +7,6 @@ import com.ap.background.recorder.data.RecorderPreferences
 import com.ap.background.recorder.services.RecordingService
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 
 class TimeTriggerReceiver : BroadcastReceiver() {
@@ -19,7 +18,7 @@ class TimeTriggerReceiver : BroadcastReceiver() {
         val scope = CoroutineScope(Dispatchers.IO)
 
         scope.launch {
-            if (!prefs.timeTriggerEnabledFlow.first()) return@launch
+            if (!prefs.isTimeTriggerEnabled()) return@launch
 
             if (isStart) {
                 val action = when (prefs.getRecordingMode()) {
@@ -31,6 +30,7 @@ class TimeTriggerReceiver : BroadcastReceiver() {
 
                 val serviceIntent = Intent(context, RecordingService::class.java).apply {
                     this.action = action
+                    putExtra("allow_toggle", false)
                 }
                 context.startForegroundService(serviceIntent)
             } else {

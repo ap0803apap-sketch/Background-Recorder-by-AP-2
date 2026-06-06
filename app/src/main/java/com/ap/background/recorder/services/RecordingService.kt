@@ -10,9 +10,11 @@ import android.content.Intent
 import android.content.pm.PackageManager
 import android.content.pm.ServiceInfo
 import android.graphics.*
+import android.media.MediaRecorder
 import android.net.Uri
 import android.os.*
 import android.util.Log
+import android.view.Surface
 import androidx.camera.core.*
 import androidx.camera.effects.OverlayEffect
 import androidx.camera.lifecycle.ProcessCameraProvider
@@ -28,11 +30,13 @@ import com.ap.background.recorder.utils.FileManager
 import com.ap.background.recorder.utils.LocationHelper
 import com.ap.background.recorder.utils.RecordingStatus
 import com.ap.background.recorder.utils.TelephonyHelper
+import com.ap.background.recorder.widgets.RecorderWidgetProvider
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
+import java.io.File
 import java.io.FileOutputStream
 import java.text.SimpleDateFormat
 import java.util.*
@@ -57,6 +61,7 @@ class RecordingService : LifecycleService() {
     private var recording: Recording? = null
     private var imageCapture: ImageCapture? = null
     private var camera: androidx.camera.core.Camera? = null
+    private var mediaRecorder: MediaRecorder? = null
 
     private var currentAction: String? = null
     private var photoHandler: Handler? = null
@@ -88,7 +93,6 @@ class RecordingService : LifecycleService() {
                 stopRecording()
                 return START_NOT_STICKY
             } else {
-                // Already recording this, and toggle not allowed, so just ignore or update notification
                 return START_STICKY
             }
         }
@@ -129,12 +133,39 @@ class RecordingService : LifecycleService() {
                     startPhotoCaptureInterval()
                 }
                 ACTION_START_AUDIO -> {
-                    startVideoRecording()
+                    startAudioRecording()
                 }
             }
         }
 
         return START_STICKY
+    }
+
+    private suspend fun startAudioRecording() {
+        updateNotification("Audio recording in progress...")
+        try {
+            val audioFile = fileManager.createAudioFile()
+            
+            @Suppress("DEPRECATION")
+            mediaRecorder = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                MediaRecorder(this)
+            } else {
+                MediaRecorder()
+            }.apply {
+                setAudioSource(MediaRecorder.AudioSource.MIC)
+                setOutputFormat(MediaRecorder.OutputFormat.MPEG_4)
+                setAudioEncoder(MediaRecorder.AudioEncoder.AAC)
+                setAudioChannels(2)
+                setAudioSamplingRate(44100)
+                setAudioEncodingBitRate(prefs.getAudioBitrate() * 1000)
+                setOutputFile(audioFile.absolutePath)
+                prepare()
+                start()
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Audio recording failed: ${e.message}")
+            stopRecording()
+        }
     }
 
     private suspend fun startVideoRecording() {
@@ -147,6 +178,8 @@ class RecordingService : LifecycleService() {
         val showAppName = prefs.showAppNameFlow.first()
         val showDeviceInfo = prefs.showDeviceInfoFlow.first()
         val showLensInfo = prefs.showLensInfoFlow.first()
+
+        val orientation = if (cameraSelection == "FRONT") prefs.getFrontOrientation() else prefs.getOrientation()
 
         val resolution = if (cameraSelection == "FRONT") prefs.getFrontVideoResolution() else prefs.getVideoResolution()
         val quality = when (resolution) {
@@ -167,8 +200,16 @@ class RecordingService : LifecycleService() {
             
             val cameraSelector = getCameraSelector(cameraProvider, cameraSelection)
 
+            val targetRotation = when (orientation) {
+                "PORTRAIT" -> Surface.ROTATION_0
+                "LANDSCAPE" -> Surface.ROTATION_90
+                else -> Surface.ROTATION_0
+            }
+
             try {
                 cameraProvider.unbindAll()
+
+                videoCapture?.targetRotation = targetRotation
 
                 val useCaseGroupBuilder = UseCaseGroup.Builder()
                     .addUseCase(videoCapture!!)
@@ -289,12 +330,30 @@ class RecordingService : LifecycleService() {
         val cameraSelection = prefs.getCameraSelection()
         val zoomLevel = prefs.getZoomLevel()
         
+        val aspectRatioStr = if (cameraSelection == "FRONT") prefs.getFrontAspectRatio() else prefs.getAspectRatio()
+        val orientationStr = if (cameraSelection == "FRONT") prefs.getFrontOrientation() else prefs.getOrientation()
+
+        val aspectRatio = when (aspectRatioStr) {
+            "4:3" -> AspectRatio.RATIO_4_3
+            "16:9" -> AspectRatio.RATIO_16_9
+            else -> AspectRatio.RATIO_16_9
+        }
+
+        val targetRotation = when (orientationStr) {
+            "PORTRAIT" -> Surface.ROTATION_0
+            "LANDSCAPE" -> Surface.ROTATION_90
+            else -> Surface.ROTATION_0
+        }
+
         updateNotification("Taking photos every $intervalSeconds seconds")
 
         val cameraProviderFuture = ProcessCameraProvider.getInstance(this)
         cameraProviderFuture.addListener({
             val cameraProvider = cameraProviderFuture.get()
-            imageCapture = ImageCapture.Builder().build()
+            imageCapture = ImageCapture.Builder()
+                .setTargetAspectRatio(aspectRatio)
+                .setTargetRotation(targetRotation)
+                .build()
             val cameraSelector = getCameraSelector(cameraProvider, cameraSelection)
 
             try {
@@ -457,6 +516,17 @@ class RecordingService : LifecycleService() {
         recording = null
         imageCapture = null
         currentAction = null
+        
+        mediaRecorder?.apply {
+            try {
+                stop()
+            } catch (e: Exception) {
+                e.printStackTrace()
+            }
+            release()
+        }
+        mediaRecorder = null
+
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
             stopForeground(STOP_FOREGROUND_REMOVE)
         } else {
@@ -497,6 +567,7 @@ class RecordingService : LifecycleService() {
             prefs.setRecordingActive(active)
         }
         RecorderTileService.updateTile(this)
+        RecorderWidgetProvider.updateAllWidgets(this)
     }
 
     override fun onDestroy() {
